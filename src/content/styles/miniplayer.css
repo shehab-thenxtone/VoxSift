@@ -1,0 +1,7 @@
+:host {
+  --color-surface: oklch(15% 0 0);
+  --color-text: oklch(95% 0 0);
+  --color-accent: oklch(60% 0.21 250);
+  all: initial;
+  font-family: 'Inter', system-ui, sans-serif;
+}

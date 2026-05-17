@@ -1,0 +1,11 @@
+@import '../ui/tokens.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  margin: 0;
+  background: var(--color-surface);
+  color: var(--color-text);
+  min-width: 18rem;
+}

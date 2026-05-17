@@ -1,0 +1,19 @@
+:host {
+  --color-surface: oklch(98% 0 0);
+  --color-text: oklch(15% 0 0);
+  --color-accent: oklch(60% 0.21 250);
+  --color-muted: oklch(70% 0 0);
+  --text-base: 1.125rem;
+  --text-heading: 1.75rem;
+  --space-section: 2rem;
+  --duration-normal: 300ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  all: initial;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.voxsift-active {
+  background: oklch(92% 0.08 250 / 0.4);
+  border-radius: 3px;
+  transition: background var(--duration-normal) var(--ease-out-expo);
+}

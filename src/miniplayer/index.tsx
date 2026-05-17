@@ -1,0 +1,1 @@
+export { MiniPlayerApp } from './App'
