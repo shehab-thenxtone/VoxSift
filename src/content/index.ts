@@ -20,10 +20,14 @@ async function setupMounts() {
   })
 }
 
-setupMessageListener()
-setupMounts().catch((e) => logger.error('Mount setup failed', e))
-
-// Track text selection for "Read Selected Text" feature
-watchSelection((hasSelection, _text) => {
-  logger.debug('Selection changed, hasSelection:', hasSelection)
-})
+// Guard against double-initialisation when the background re-injects this
+// script into a tab that pre-dates the extension install.
+const _g = globalThis as Record<string, unknown>
+if (!_g.__voxsift_init) {
+  _g.__voxsift_init = true
+  setupMessageListener()
+  setupMounts().catch((e) => logger.error('Mount setup failed', e))
+  watchSelection((hasSelection, _text) => {
+    logger.debug('Selection changed, hasSelection:', hasSelection)
+  })
+}

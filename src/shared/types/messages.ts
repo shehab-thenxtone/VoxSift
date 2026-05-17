@@ -67,7 +67,7 @@ export type Message =
   | (Base<typeof MESSAGE_TYPE.OpenReader> & { tabId: number })
   | (Base<typeof MESSAGE_TYPE.CloseReader> & { tabId: number })
   | (Base<typeof MESSAGE_TYPE.RunExtraction> & { contentId: string; tabId: number })
-  | (Base<typeof MESSAGE_TYPE.ExtractSelection> & { contentId: string })
+  | (Base<typeof MESSAGE_TYPE.ExtractSelection> & { contentId: string; tabId: number })
   | (Base<typeof MESSAGE_TYPE.MountReader> & { content: ExtractedContent })
   | Base<typeof MESSAGE_TYPE.UnmountReader>
   | (Base<typeof MESSAGE_TYPE.MountMiniPlayer> & { contentId: string })

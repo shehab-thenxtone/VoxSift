@@ -1,6 +1,6 @@
 import type { Message, MessageResponse } from '../shared/types/messages'
 import { MESSAGE_TYPE } from '../shared/types/messages'
-import { runPageExtraction } from './extractionBridge'
+import { runPageExtraction, runSelectionExtraction } from './extractionBridge'
 import { logger } from '../shared/utils/logger'
 
 // Will be set by the mount functions
@@ -78,6 +78,12 @@ async function handleContentMessage(msg: Message): Promise<MessageResponse> {
       const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.HighlightSegment }>
       highlightSegment?.(m.segmentId)
       return { ok: true, reqId, data: undefined }
+    }
+
+    case MESSAGE_TYPE.ExtractSelection: {
+      const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractSelection }>
+      const content = runSelectionExtraction(m.tabId)
+      return { ok: true, reqId, data: content }
     }
 
     case MESSAGE_TYPE.PlaybackUpdated:
