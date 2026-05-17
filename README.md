@@ -16,8 +16,17 @@ VoxSift is a Manifest V3 Chrome extension that extracts meaningful content from 
 | Cross-tab continuity | Background service worker owns playback — switching tabs never interrupts audio |
 | Reader mode | Clean extracted view with per-sentence highlight synced to TTS position |
 | Selected text | Highlight any text and choose "Read Selected Text" |
+| Keyboard shortcut | Option+Shift+S (Mac) / Alt+Shift+S (Windows) — reads selection if text is selected, otherwise reads the page |
 | Resume playback | Remembers position across popup closes and tab switches |
 | 100% local | No network requests, no analytics, no login |
+
+---
+
+## Keyboard Shortcuts
+
+Press **Option+Shift+S** (Mac) or **Alt+Shift+S** (Windows/Linux) to activate reading: reads selected text if a selection exists, otherwise extracts and reads the full page.
+
+> Customize at `chrome://extensions/shortcuts`.
 
 ---
 
@@ -195,7 +204,7 @@ VoxSift processes everything locally. It makes **zero external network requests*
 
 ## MVP Scope
 
-**In scope:** smart extraction, reader mode, 5 built-in voices, playback controls (play/pause/stop/skip/previous/speed), Ghost Mode, floating mini-player, resume playback, read selected text.
+**In scope:** smart extraction, reader mode, 5 built-in voices, playback controls (play/pause/stop/skip/previous/speed), Ghost Mode, floating mini-player, resume playback, read selected text, keyboard shortcut.
 
 **Out of scope for MVP:** AI voices, mobile browser support, cloud sync, offline audio export.
 

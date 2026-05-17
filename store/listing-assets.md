@@ -33,6 +33,7 @@ WHAT IT DOES
 
 CONTROLS
 Play · Pause · Stop · Skip forward · Skip back · 5 built-in voices · Speed (0.5× – 3×)
+Keyboard shortcut: Option+Shift+S (Mac) / Alt+Shift+S (Windows) — read selection or read page. Customizable at chrome://extensions/shortcuts.
 
 PRIVACY
 100% local. No accounts, no analytics, no external requests. Webpage content is processed inside your browser and discarded after playback. Your preferences are stored locally in chrome.storage.local only. Full privacy policy: https://YOUR_PRIVACY_POLICY_URL

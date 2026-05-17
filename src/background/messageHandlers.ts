@@ -248,3 +248,59 @@ export async function handleMessage(
     return failure(reqId, 'INTERNAL', String(e))
   }
 }
+
+export async function handleKeyboardShortcut(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId).catch(() => null)
+  if (isRestrictedUrl(tab?.url ?? '')) {
+    await playbackController.onExtractionFailed(tabId, "VoxSift can't run on this page")
+    return
+  }
+
+  const selMsg = {
+    type: MESSAGE_TYPE.ExtractSelection,
+    contentId: genReqId(),
+    tabId,
+  } as Parameters<typeof sendToTab>[1]
+
+  let content: ExtractedContent | null = null
+  try {
+    const response = await sendToTab<ExtractedContent | null>(tabId, selMsg).catch(async () => {
+      await ensureContentScript(tabId)
+      return sendToTab<ExtractedContent | null>(tabId, selMsg)
+    })
+    if (response.ok) content = response.data
+  } catch {
+    // content script unavailable — fall through to page extraction
+  }
+
+  if (content) {
+    await storageManager.cacheContent(content)
+    await playbackController.loadContent(content)
+    sendToTab(tabId, { type: MESSAGE_TYPE.MountReader, content } as Parameters<
+      typeof sendToTab
+    >[1]).catch(() => {})
+    sendToTab(tabId, {
+      type: MESSAGE_TYPE.MountMiniPlayer,
+      contentId: content.id,
+    } as Parameters<typeof sendToTab>[1]).catch(() => {})
+    return
+  }
+
+  const contentId = genReqId()
+  await playbackController.startExtraction(tabId, contentId)
+  const runMsg = {
+    type: MESSAGE_TYPE.RunExtraction,
+    contentId,
+    tabId,
+  } as Parameters<typeof sendToTab>[1]
+  sendToTab(tabId, runMsg).catch(async () => {
+    try {
+      await ensureContentScript(tabId)
+      await sendToTab(tabId, runMsg)
+    } catch {
+      playbackController
+        .onExtractionFailed(tabId, 'Please reload the page and try again')
+        .catch(() => {})
+    }
+  })
+}
