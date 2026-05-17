@@ -48,6 +48,16 @@ export default defineManifest({
     },
   ],
 
+  commands: {
+    'activate-reading': {
+      suggested_key: {
+        default: 'Alt+Shift+S',
+        mac: 'Alt+Shift+S',
+      },
+      description: 'Read selected text, or read the page if nothing is selected',
+    },
+  },
+
   content_security_policy: {
     extension_pages: "script-src 'self'; object-src 'self'",
   },
