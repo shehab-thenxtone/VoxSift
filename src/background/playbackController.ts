@@ -44,6 +44,10 @@ async function broadcast(tabId: number): Promise<void> {
   persist(tabId)
 }
 
+function isActiveTab(tabId: number): boolean {
+  return sessionManager.getActiveTabId() === tabId
+}
+
 export const playbackController = {
   getState(tabId?: number): Readonly<PlaybackState> {
     if (tabId !== undefined) {
@@ -70,7 +74,7 @@ export const playbackController = {
   async onFirstChunk(tabId: number, segments: SpeechSegment[]): Promise<void> {
     const session = sessionManager.getOrCreate(tabId)
     session.queue.load(segments)
-    if (sessionManager.getActiveTabId() === tabId) {
+    if (isActiveTab(tabId)) {
       await this.play(tabId)
     }
   },
@@ -78,18 +82,35 @@ export const playbackController = {
   async onChunk(tabId: number, segments: SpeechSegment[]): Promise<void> {
     const session = sessionManager.getOrCreate(tabId)
     session.queue.append(segments)
-    if (sessionManager.getActiveTabId() === tabId) {
+    if (isActiveTab(tabId)) {
       getTtsEngine().appendSegments(segments)
     }
   },
 
   async loadContent(content: ExtractedContent): Promise<void> {
     const tabId = content.tabId
+
+    // ReadSelection skips startExtraction, so ensure the session is set up here.
+    // For streaming extraction, startExtraction already ran — these are no-ops.
+    await this.pauseActiveIfNeeded(tabId)
+    sessionManager.setActive(tabId)
+
     const session = sessionManager.getOrCreate(tabId)
     session.queue.load(content.segments)
+
+    // If the FSM wasn't put into 'extracting' by startExtraction, bootstrap it now
+    // so EXTRACT_COMPLETED can transition correctly.
+    const currentStatus = session.fsm.getState().status
+    if (currentStatus !== 'extracting' && currentStatus !== 'playing') {
+      session.fsm.dispatch(
+        { type: 'EXTRACT_AND_PLAY', tabId, contentId: content.id },
+        session.queue.length,
+      )
+    }
+
     session.fsm.dispatch({ type: 'EXTRACT_COMPLETED' }, session.queue.length)
     await broadcast(tabId)
-    if (session.fsm.getState().status === 'ready' && sessionManager.getActiveTabId() === tabId) {
+    if (session.fsm.getState().status === 'ready') {
       await this.play(tabId)
     }
   },
@@ -112,6 +133,7 @@ export const playbackController = {
     if (!activeSession) return
     if (activeSession.fsm.getState().status === 'playing') {
       getTtsEngine().cancel()
+      activeSession.enginePaused = false
       activeSession.fsm.dispatch({ type: 'PAUSE' }, activeSession.queue.length)
       await broadcast(activeTabId)
     }
@@ -128,12 +150,15 @@ export const playbackController = {
     const prevStatus = session.fsm.getState().status
     session.fsm.dispatch({ type: 'PLAY' }, session.queue.length)
 
-    if (prevStatus === 'paused') {
+    // Resume in-place only when the engine was truly paused (not cancelled via tab-switch).
+    if (prevStatus === 'paused' && session.enginePaused) {
       getTtsEngine().resume()
+      session.enginePaused = false
       await broadcast(resolvedTabId)
       return
     }
 
+    session.enginePaused = false
     const state = session.fsm.getState()
     const engine = getTtsEngine()
     const segments = session.queue.getAll()
@@ -188,7 +213,11 @@ export const playbackController = {
     if (resolvedTabId === null) return
     const session = sessionManager.get(resolvedTabId)
     if (!session) return
-    getTtsEngine().pause()
+    // Only pause the shared TTS engine when this tab is the one driving it.
+    if (isActiveTab(resolvedTabId)) {
+      getTtsEngine().pause()
+      session.enginePaused = true
+    }
     session.fsm.dispatch({ type: 'PAUSE' }, session.queue.length)
     await broadcast(resolvedTabId)
   },
@@ -198,7 +227,10 @@ export const playbackController = {
     if (resolvedTabId === null) return
     const session = sessionManager.get(resolvedTabId)
     if (!session) return
-    getTtsEngine().cancel()
+    if (isActiveTab(resolvedTabId)) {
+      getTtsEngine().cancel()
+      session.enginePaused = false
+    }
     session.fsm.dispatch({ type: 'STOP' }, session.queue.length)
     await broadcast(resolvedTabId)
   },
@@ -208,7 +240,10 @@ export const playbackController = {
     if (resolvedTabId === null) return
     const session = sessionManager.get(resolvedTabId)
     if (!session) return
-    getTtsEngine().cancel()
+    if (isActiveTab(resolvedTabId)) {
+      getTtsEngine().cancel()
+      session.enginePaused = false
+    }
     session.fsm.dispatch({ type: 'SKIP_NEXT' }, session.queue.length)
     if (session.fsm.getState().status === 'playing') await this.play(resolvedTabId)
     else await broadcast(resolvedTabId)
@@ -219,7 +254,10 @@ export const playbackController = {
     if (resolvedTabId === null) return
     const session = sessionManager.get(resolvedTabId)
     if (!session) return
-    getTtsEngine().cancel()
+    if (isActiveTab(resolvedTabId)) {
+      getTtsEngine().cancel()
+      session.enginePaused = false
+    }
     session.fsm.dispatch({ type: 'SKIP_PREV' }, session.queue.length)
     if (session.fsm.getState().status === 'playing') await this.play(resolvedTabId)
     else await broadcast(resolvedTabId)
@@ -230,7 +268,10 @@ export const playbackController = {
     if (resolvedTabId === null) return
     const session = sessionManager.get(resolvedTabId)
     if (!session) return
-    getTtsEngine().cancel()
+    if (isActiveTab(resolvedTabId)) {
+      getTtsEngine().cancel()
+      session.enginePaused = false
+    }
     session.fsm.dispatch({ type: 'SEEK', segmentIndex: index }, session.queue.length)
     if (session.fsm.getState().status === 'playing') await this.play(resolvedTabId)
     else await broadcast(resolvedTabId)
@@ -254,12 +295,11 @@ export const playbackController = {
     await broadcast(tabId)
   },
 
+  /** Toggle ghost mode across all active sessions so every reader panel reacts. */
   async toggleGhostMode(enabled: boolean): Promise<void> {
-    const tabId = sessionManager.getActiveTabId()
-    if (tabId === null) return
-    const session = sessionManager.get(tabId)
-    if (!session) return
-    session.fsm.dispatch({ type: 'TOGGLE_GHOST_MODE', enabled }, session.queue.length)
-    await broadcast(tabId)
+    for (const [, session] of sessionManager.entries()) {
+      session.fsm.dispatch({ type: 'TOGGLE_GHOST_MODE', enabled }, session.queue.length)
+    }
+    await broadcastPlaybackUpdated()
   },
 }

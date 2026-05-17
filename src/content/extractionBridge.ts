@@ -72,9 +72,21 @@ export async function runPageExtraction(
 }
 
 export function runSelectionExtraction(tabId: number): ExtractedContent | null {
-  // Prefer the live selection; fall back to the last cached text because
-  // the popup steals page focus and makes window.getSelection() return "".
-  const live = window.getSelection()?.toString().trim() ?? ''
+  // Try standard selection; also check textarea/input since window.getSelection()
+  // doesn't capture text selected inside form elements.
+  // Fall back to last cached text if focus already moved to the popup.
+  let live = window.getSelection()?.toString().trim() ?? ''
+  if (!live) {
+    const el = document.activeElement
+    if (
+      (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) &&
+      el.selectionStart !== null
+    ) {
+      const start = el.selectionStart ?? 0
+      const end = el.selectionEnd ?? start
+      if (end > start) live = el.value.substring(start, end).trim()
+    }
+  }
   const text = live || getLastSelectionText()
   if (!text) return null
 

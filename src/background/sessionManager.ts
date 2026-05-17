@@ -4,6 +4,8 @@ import { QueueManager } from './queueManager'
 export interface TabSession {
   fsm: PlaybackStateMachine
   queue: QueueManager
+  /** True only when the TTS engine was paused in-place (not cancelled). Cleared on cancel. */
+  enginePaused: boolean
 }
 
 class SessionManager {
@@ -13,7 +15,7 @@ class SessionManager {
   getOrCreate(tabId: number): TabSession {
     let session = this.sessions.get(tabId)
     if (!session) {
-      session = { fsm: new PlaybackStateMachine(), queue: new QueueManager() }
+      session = { fsm: new PlaybackStateMachine(), queue: new QueueManager(), enginePaused: false }
       this.sessions.set(tabId, session)
     }
     return session
