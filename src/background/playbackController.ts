@@ -1,20 +1,37 @@
-import { PlaybackStateMachine } from './playbackStateMachine'
-import { QueueManager } from './queueManager'
-import { tabRegistry } from './tabRegistry'
+import { sessionManager } from './sessionManager'
 import { broadcastPlaybackUpdated } from './broadcast'
 import { sessionStore } from '../storage/sessionStore'
 import { getTtsEngine } from '../tts/engineFactory'
 import type { ExtractedContent, SpeechSegment } from '../shared/types/content'
+import type { PlaybackState } from '../shared/types/playback'
 import type { VoiceConfig } from '../shared/types/voice'
+import { DEFAULT_VOICE } from '../shared/constants/defaults'
 import { MESSAGE_TYPE } from '../shared/types/messages'
 import { genReqId } from '../shared/utils/id'
 import { logger } from '../shared/utils/logger'
 
-const fsm = new PlaybackStateMachine()
-const queue = new QueueManager()
+function getIdleState(): PlaybackState {
+  return {
+    status: 'idle',
+    contentId: null,
+    tabId: null,
+    activeSegmentIndex: 0,
+    activeSegmentId: null,
+    charOffsetInSegment: 0,
+    progress: 0,
+    extractionProgress: 0,
+    voice: DEFAULT_VOICE,
+    ghostMode: false,
+    revision: 0,
+    updatedAt: Date.now(),
+    error: null,
+  }
+}
 
-function persist() {
-  const state = fsm.getState()
+function persist(tabId: number): void {
+  const session = sessionManager.get(tabId)
+  if (!session) return
+  const state = session.fsm.getState()
   sessionStore.save({
     state: { ...state },
     contentRef:
@@ -22,74 +39,104 @@ function persist() {
   })
 }
 
-async function broadcast() {
-  await broadcastPlaybackUpdated(fsm.getState())
-  persist()
+async function broadcast(tabId: number): Promise<void> {
+  await broadcastPlaybackUpdated()
+  persist(tabId)
 }
 
 export const playbackController = {
-  getState() {
-    return fsm.getState()
+  getState(tabId?: number): Readonly<PlaybackState> {
+    if (tabId !== undefined) {
+      return sessionManager.get(tabId)?.fsm.getState() ?? getIdleState()
+    }
+    return sessionManager.getActive()?.fsm.getState() ?? getIdleState()
   },
 
   async startExtraction(tabId: number, contentId: string): Promise<void> {
-    fsm.dispatch({ type: 'EXTRACT_AND_PLAY', tabId, contentId }, queue.length)
-    await broadcast()
+    await this.pauseActiveIfNeeded(tabId)
+    sessionManager.setActive(tabId)
+    const session = sessionManager.getOrCreate(tabId)
+    session.fsm.dispatch({ type: 'EXTRACT_AND_PLAY', tabId, contentId }, session.queue.length)
+    await broadcast(tabId)
   },
 
-  async onExtractionProgress(progress: number): Promise<void> {
-    fsm.dispatch({ type: 'EXTRACTION_PROGRESS', progress }, queue.length)
-    await broadcast()
+  async onExtractionProgress(tabId: number, progress: number): Promise<void> {
+    const session = sessionManager.get(tabId)
+    if (!session) return
+    session.fsm.dispatch({ type: 'EXTRACTION_PROGRESS', progress }, session.queue.length)
+    await broadcast(tabId)
   },
 
-  /** Called when the first streaming chunk arrives — starts TTS immediately */
   async onFirstChunk(tabId: number, segments: SpeechSegment[]): Promise<void> {
-    queue.load(segments)
-    tabRegistry.setActive(tabId)
-    await this.play()
-  },
-
-  /** Called for subsequent streaming chunks — appends to live TTS queue */
-  async onChunk(segments: SpeechSegment[]): Promise<void> {
-    queue.append(segments)
-    getTtsEngine().appendSegments(segments)
-  },
-
-  /** Called when full content arrives (ExtractionCompleted) */
-  async loadContent(content: ExtractedContent): Promise<void> {
-    queue.load(content.segments)
-    tabRegistry.setActive(content.tabId)
-    fsm.dispatch({ type: 'EXTRACT_COMPLETED' }, queue.length)
-    await broadcast()
-    // Only auto-play when extraction just finished and TTS hadn't started yet.
-    // 'playing' means streaming already started; 'paused' means user paused intentionally.
-    if (fsm.getState().status === 'ready') {
-      await this.play()
+    const session = sessionManager.getOrCreate(tabId)
+    session.queue.load(segments)
+    if (sessionManager.getActiveTabId() === tabId) {
+      await this.play(tabId)
     }
   },
 
-  async onExtractionFailed(reason: string): Promise<void> {
-    fsm.dispatch({
+  async onChunk(tabId: number, segments: SpeechSegment[]): Promise<void> {
+    const session = sessionManager.getOrCreate(tabId)
+    session.queue.append(segments)
+    if (sessionManager.getActiveTabId() === tabId) {
+      getTtsEngine().appendSegments(segments)
+    }
+  },
+
+  async loadContent(content: ExtractedContent): Promise<void> {
+    const tabId = content.tabId
+    const session = sessionManager.getOrCreate(tabId)
+    session.queue.load(content.segments)
+    session.fsm.dispatch({ type: 'EXTRACT_COMPLETED' }, session.queue.length)
+    await broadcast(tabId)
+    if (session.fsm.getState().status === 'ready' && sessionManager.getActiveTabId() === tabId) {
+      await this.play(tabId)
+    }
+  },
+
+  async onExtractionFailed(tabId: number, reason: string): Promise<void> {
+    const session = sessionManager.get(tabId)
+    if (!session) return
+    session.fsm.dispatch({
       type: 'EXTRACT_FAILED',
       error: { code: 'EXTRACTION_FAILED', message: reason },
     })
-    await broadcast()
+    await broadcast(tabId)
   },
 
-  async play(): Promise<void> {
-    const prevStatus = fsm.getState().status
-    fsm.dispatch({ type: 'PLAY' }, queue.length)
+  /** Pause the currently active TTS tab if it differs from `incomingTabId`. */
+  async pauseActiveIfNeeded(incomingTabId: number): Promise<void> {
+    const activeTabId = sessionManager.getActiveTabId()
+    if (activeTabId === null || activeTabId === incomingTabId) return
+    const activeSession = sessionManager.getActive()
+    if (!activeSession) return
+    if (activeSession.fsm.getState().status === 'playing') {
+      getTtsEngine().cancel()
+      activeSession.fsm.dispatch({ type: 'PAUSE' }, activeSession.queue.length)
+      await broadcast(activeTabId)
+    }
+  },
 
-    // Resume a paused engine in-place — don't cancel and restart.
+  async play(tabId?: number): Promise<void> {
+    const resolvedTabId = tabId ?? sessionManager.getActiveTabId()
+    if (resolvedTabId === null) return
+
+    await this.pauseActiveIfNeeded(resolvedTabId)
+    sessionManager.setActive(resolvedTabId)
+
+    const session = sessionManager.getOrCreate(resolvedTabId)
+    const prevStatus = session.fsm.getState().status
+    session.fsm.dispatch({ type: 'PLAY' }, session.queue.length)
+
     if (prevStatus === 'paused') {
       getTtsEngine().resume()
-      await broadcast()
+      await broadcast(resolvedTabId)
       return
     }
 
-    const state = fsm.getState()
+    const state = session.fsm.getState()
     const engine = getTtsEngine()
-    const segments = queue.getAll()
+    const segments = session.queue.getAll()
 
     engine.speak(
       segments,
@@ -98,14 +145,14 @@ export const playbackController = {
       (boundary) => {
         const seg = segments[boundary.segmentIndex]
         if (!seg) return
-        fsm.dispatch(
+        session.fsm.dispatch(
           {
             type: 'BOUNDARY',
             segmentIndex: boundary.segmentIndex,
             segmentId: seg.id,
             charOffsetInSegment: boundary.charIndex,
           },
-          queue.length,
+          session.queue.length,
         )
 
         const boundaryMsg = {
@@ -116,72 +163,103 @@ export const playbackController = {
           segmentIndex: boundary.segmentIndex,
           charOffsetInSegment: boundary.charIndex,
         }
-        const tabId = tabRegistry.getActive()
-        if (tabId) chrome.tabs.sendMessage(tabId, boundaryMsg).catch(() => {})
-        persist()
+        chrome.tabs.sendMessage(resolvedTabId, boundaryMsg).catch(() => {})
+        persist(resolvedTabId)
       },
       () => {
-        fsm.dispatch({ type: 'QUEUE_END' }, queue.length)
-        broadcast()
+        session.fsm.dispatch({ type: 'QUEUE_END' }, session.queue.length)
+        broadcast(resolvedTabId)
       },
       (error) => {
         logger.error('TTS error', error)
-        fsm.dispatch({
+        session.fsm.dispatch({
           type: 'EXTRACT_FAILED',
           error: { code: 'TTS_ENGINE_ERROR', message: error },
         })
-        broadcast()
+        broadcast(resolvedTabId)
       },
     )
 
-    await broadcast()
+    await broadcast(resolvedTabId)
   },
 
-  async pause(): Promise<void> {
+  async pause(tabId?: number): Promise<void> {
+    const resolvedTabId = tabId ?? sessionManager.getActiveTabId()
+    if (resolvedTabId === null) return
+    const session = sessionManager.get(resolvedTabId)
+    if (!session) return
     getTtsEngine().pause()
-    fsm.dispatch({ type: 'PAUSE' }, queue.length)
-    await broadcast()
+    session.fsm.dispatch({ type: 'PAUSE' }, session.queue.length)
+    await broadcast(resolvedTabId)
   },
 
-  async stop(): Promise<void> {
+  async stop(tabId?: number): Promise<void> {
+    const resolvedTabId = tabId ?? sessionManager.getActiveTabId()
+    if (resolvedTabId === null) return
+    const session = sessionManager.get(resolvedTabId)
+    if (!session) return
     getTtsEngine().cancel()
-    fsm.dispatch({ type: 'STOP' }, queue.length)
-    await broadcast()
+    session.fsm.dispatch({ type: 'STOP' }, session.queue.length)
+    await broadcast(resolvedTabId)
   },
 
-  async skipNext(): Promise<void> {
+  async skipNext(tabId?: number): Promise<void> {
+    const resolvedTabId = tabId ?? sessionManager.getActiveTabId()
+    if (resolvedTabId === null) return
+    const session = sessionManager.get(resolvedTabId)
+    if (!session) return
     getTtsEngine().cancel()
-    fsm.dispatch({ type: 'SKIP_NEXT' }, queue.length)
-    if (fsm.getState().status === 'playing') await this.play()
-    else await broadcast()
+    session.fsm.dispatch({ type: 'SKIP_NEXT' }, session.queue.length)
+    if (session.fsm.getState().status === 'playing') await this.play(resolvedTabId)
+    else await broadcast(resolvedTabId)
   },
 
-  async skipPrev(): Promise<void> {
+  async skipPrev(tabId?: number): Promise<void> {
+    const resolvedTabId = tabId ?? sessionManager.getActiveTabId()
+    if (resolvedTabId === null) return
+    const session = sessionManager.get(resolvedTabId)
+    if (!session) return
     getTtsEngine().cancel()
-    fsm.dispatch({ type: 'SKIP_PREV' }, queue.length)
-    if (fsm.getState().status === 'playing') await this.play()
-    else await broadcast()
+    session.fsm.dispatch({ type: 'SKIP_PREV' }, session.queue.length)
+    if (session.fsm.getState().status === 'playing') await this.play(resolvedTabId)
+    else await broadcast(resolvedTabId)
   },
 
-  async seekToSegment(index: number): Promise<void> {
+  async seekToSegment(index: number, tabId?: number): Promise<void> {
+    const resolvedTabId = tabId ?? sessionManager.getActiveTabId()
+    if (resolvedTabId === null) return
+    const session = sessionManager.get(resolvedTabId)
+    if (!session) return
     getTtsEngine().cancel()
-    fsm.dispatch({ type: 'SEEK', segmentIndex: index }, queue.length)
-    if (fsm.getState().status === 'playing') await this.play()
-    else await broadcast()
+    session.fsm.dispatch({ type: 'SEEK', segmentIndex: index }, session.queue.length)
+    if (session.fsm.getState().status === 'playing') await this.play(resolvedTabId)
+    else await broadcast(resolvedTabId)
   },
 
   async setVoice(voice: VoiceConfig): Promise<void> {
-    fsm.dispatch({ type: 'SET_VOICE', voice }, queue.length)
-    await broadcast()
+    const tabId = sessionManager.getActiveTabId()
+    if (tabId === null) return
+    const session = sessionManager.get(tabId)
+    if (!session) return
+    session.fsm.dispatch({ type: 'SET_VOICE', voice }, session.queue.length)
+    await broadcast(tabId)
   },
 
   async setRate(rate: number): Promise<void> {
-    fsm.dispatch({ type: 'SET_RATE', rate }, queue.length)
-    await broadcast()
+    const tabId = sessionManager.getActiveTabId()
+    if (tabId === null) return
+    const session = sessionManager.get(tabId)
+    if (!session) return
+    session.fsm.dispatch({ type: 'SET_RATE', rate }, session.queue.length)
+    await broadcast(tabId)
   },
 
   async toggleGhostMode(enabled: boolean): Promise<void> {
-    fsm.dispatch({ type: 'TOGGLE_GHOST_MODE', enabled }, queue.length)
-    await broadcast()
+    const tabId = sessionManager.getActiveTabId()
+    if (tabId === null) return
+    const session = sessionManager.get(tabId)
+    if (!session) return
+    session.fsm.dispatch({ type: 'TOGGLE_GHOST_MODE', enabled }, session.queue.length)
+    await broadcast(tabId)
   },
 }

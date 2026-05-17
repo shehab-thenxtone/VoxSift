@@ -2,6 +2,7 @@ import type { Message, MessageResponse } from '../shared/types/messages'
 import { MESSAGE_TYPE } from '../shared/types/messages'
 import type { ExtractedContent } from '../shared/types/content'
 import { playbackController } from './playbackController'
+import { sessionManager } from './sessionManager'
 import { storageManager } from '../storage/storageManager'
 import { getTtsEngine } from '../tts/engineFactory'
 import { sendToTab } from '../shared/messaging/send'
@@ -29,14 +30,15 @@ function failure(reqId: string, code: string, message: string): MessageResponse 
 
 export async function handleMessage(
   msg: Message,
-  _sender: chrome.runtime.MessageSender,
+  sender: chrome.runtime.MessageSender,
 ): Promise<MessageResponse> {
   const { type, reqId } = msg
+  const senderTabId = sender.tab?.id
 
   try {
     switch (type) {
       case MESSAGE_TYPE.GetPlaybackState:
-        return success(reqId, playbackController.getState())
+        return success(reqId, playbackController.getState(senderTabId))
 
       case MESSAGE_TYPE.GetVoices: {
         const voices = await getTtsEngine().getVoices()
@@ -48,7 +50,7 @@ export async function handleMessage(
 
         const tab = await chrome.tabs.get(m.tabId).catch(() => null)
         if (isRestrictedUrl(tab?.url ?? '')) {
-          await playbackController.onExtractionFailed("VoxSift can't run on this page")
+          await playbackController.onExtractionFailed(m.tabId, "VoxSift can't run on this page")
           return success(reqId, null)
         }
 
@@ -62,13 +64,12 @@ export async function handleMessage(
         } as Parameters<typeof sendToTab>[1]
 
         sendToTab(m.tabId, runMsg).catch(async () => {
-          // Content script not injected — tab pre-dates extension install. Inject and retry.
           try {
             await ensureContentScript(m.tabId)
             await sendToTab(m.tabId, runMsg)
           } catch {
             playbackController
-              .onExtractionFailed('Please reload the page and try again')
+              .onExtractionFailed(m.tabId, 'Please reload the page and try again')
               .catch(() => {})
           }
         })
@@ -78,27 +79,34 @@ export async function handleMessage(
 
       case MESSAGE_TYPE.ExtractionFailed: {
         const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionFailed }>
-        await playbackController.onExtractionFailed(m.reason)
+        const tabId = senderTabId ?? sessionManager.getActiveTabId()
+        if (tabId !== undefined && tabId !== null) {
+          await playbackController.onExtractionFailed(tabId, m.reason)
+        }
         return success(reqId, undefined)
       }
 
       case MESSAGE_TYPE.ExtractionProgress: {
         const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionProgress }>
-        await playbackController.onExtractionProgress(m.progress)
+        if (senderTabId !== undefined) {
+          await playbackController.onExtractionProgress(senderTabId, m.progress)
+        }
         return success(reqId, undefined)
       }
 
       case MESSAGE_TYPE.ExtractionChunk: {
         const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionChunk }>
+        const tabId = m.meta?.tabId ?? senderTabId
+        if (tabId === undefined) return success(reqId, undefined)
+
         if (m.isFirst && m.meta) {
-          await playbackController.onFirstChunk(m.meta.tabId, m.segments)
-          // Mount mini-player immediately so user has controls during extraction
-          sendToTab(m.meta.tabId, {
+          await playbackController.onFirstChunk(tabId, m.segments)
+          sendToTab(tabId, {
             type: MESSAGE_TYPE.MountMiniPlayer,
             contentId: m.contentId,
           } as Parameters<typeof sendToTab>[1]).catch(() => {})
         } else {
-          await playbackController.onChunk(m.segments)
+          await playbackController.onChunk(tabId, m.segments)
         }
         return success(reqId, undefined)
       }
@@ -106,17 +114,18 @@ export async function handleMessage(
       case MESSAGE_TYPE.ExtractionCompleted: {
         const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionCompleted }>
         await storageManager.cacheContent(m.content)
-        const wasPlaying = playbackController.getState().status === 'playing'
+
+        const tabSession = sessionManager.get(m.content.tabId)
+        const wasPlaying = tabSession?.fsm.getState().status === 'playing'
+
         await playbackController.loadContent(m.content)
 
         const tabId = m.content.tabId
-        // Always mount reader with complete content
         sendToTab(tabId, {
           type: MESSAGE_TYPE.MountReader,
           content: m.content,
         } as Parameters<typeof sendToTab>[1]).catch(() => {})
 
-        // Mini-player only needed if streaming didn't mount it already
         if (!wasPlaying) {
           sendToTab(tabId, {
             type: MESSAGE_TYPE.MountMiniPlayer,
@@ -128,28 +137,28 @@ export async function handleMessage(
       }
 
       case MESSAGE_TYPE.Play:
-        await playbackController.play()
+        await playbackController.play(senderTabId)
         return success(reqId, undefined)
 
       case MESSAGE_TYPE.Pause:
-        await playbackController.pause()
+        await playbackController.pause(senderTabId)
         return success(reqId, undefined)
 
       case MESSAGE_TYPE.Stop:
-        await playbackController.stop()
+        await playbackController.stop(senderTabId)
         return success(reqId, undefined)
 
       case MESSAGE_TYPE.SkipNext:
-        await playbackController.skipNext()
+        await playbackController.skipNext(senderTabId)
         return success(reqId, undefined)
 
       case MESSAGE_TYPE.SkipPrev:
-        await playbackController.skipPrev()
+        await playbackController.skipPrev(senderTabId)
         return success(reqId, undefined)
 
       case MESSAGE_TYPE.SeekToSegment: {
         const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.SeekToSegment }>
-        await playbackController.seekToSegment(m.segmentIndex)
+        await playbackController.seekToSegment(m.segmentIndex, senderTabId)
         return success(reqId, undefined)
       }
 
@@ -176,7 +185,7 @@ export async function handleMessage(
 
         const tab = await chrome.tabs.get(m.tabId).catch(() => null)
         if (isRestrictedUrl(tab?.url ?? '')) {
-          await playbackController.onExtractionFailed("VoxSift can't run on this page")
+          await playbackController.onExtractionFailed(m.tabId, "VoxSift can't run on this page")
           return success(reqId, null)
         }
 
@@ -199,19 +208,22 @@ export async function handleMessage(
               selMsg,
             )) as typeof response
           } catch {
-            await playbackController.onExtractionFailed('Please reload the page and try again')
+            await playbackController.onExtractionFailed(
+              m.tabId,
+              'Please reload the page and try again',
+            )
             return success(reqId, null)
           }
         }
 
         if (!response.ok) {
-          await playbackController.onExtractionFailed(response.error.message)
+          await playbackController.onExtractionFailed(m.tabId, response.error.message)
           return success(reqId, null)
         }
 
         const content = response.data
         if (!content) {
-          await playbackController.onExtractionFailed('Select some text on the page first')
+          await playbackController.onExtractionFailed(m.tabId, 'Select some text on the page first')
           return success(reqId, null)
         }
 
