@@ -57,12 +57,13 @@ export const playbackController = {
 
   /** Called when full content arrives (ExtractionCompleted) */
   async loadContent(content: ExtractedContent): Promise<void> {
-    const wasPlaying = fsm.getState().status === 'playing'
     queue.load(content.segments)
     tabRegistry.setActive(content.tabId)
     fsm.dispatch({ type: 'EXTRACT_COMPLETED' }, queue.length)
     await broadcast()
-    if (!wasPlaying) {
+    // Only auto-play when extraction just finished and TTS hadn't started yet.
+    // 'playing' means streaming already started; 'paused' means user paused intentionally.
+    if (fsm.getState().status === 'ready') {
       await this.play()
     }
   },
@@ -76,7 +77,15 @@ export const playbackController = {
   },
 
   async play(): Promise<void> {
+    const prevStatus = fsm.getState().status
     fsm.dispatch({ type: 'PLAY' }, queue.length)
+
+    // Resume a paused engine in-place — don't cancel and restart.
+    if (prevStatus === 'paused') {
+      getTtsEngine().resume()
+      await broadcast()
+      return
+    }
 
     const state = fsm.getState()
     const engine = getTtsEngine()

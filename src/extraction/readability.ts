@@ -34,3 +34,61 @@ export function runReadability(doc: Document): Result<ReadabilityResult> {
     length: article.length,
   })
 }
+
+/**
+ * Fallback for SPA/app pages where Readability returns null.
+ * Walks the visible DOM, strips chrome (nav/header/footer/etc.), and
+ * returns the remaining text as a ReadabilityResult.
+ */
+export function extractBodyText(doc: Document): Result<ReadabilityResult> {
+  // Prefer semantic content containers over the raw body
+  const preferredSelectors = ['main', '[role="main"]', 'article']
+  let root: Element = doc.body
+  for (const sel of preferredSelectors) {
+    const el = doc.querySelector(sel)
+    if (el && (el.textContent?.trim().length ?? 0) > 200) {
+      root = el
+      break
+    }
+  }
+
+  // Clone so we can strip without touching the live page
+  const clone = root.cloneNode(true) as Element
+  const noiseSelectors = [
+    'script',
+    'style',
+    'noscript',
+    'nav',
+    'header',
+    'footer',
+    'aside',
+    '[aria-hidden="true"]',
+    '[role="navigation"]',
+    '[role="banner"]',
+  ]
+  noiseSelectors.forEach((sel) => {
+    clone.querySelectorAll(sel).forEach((el) => el.remove())
+  })
+
+  // Normalise whitespace while preserving paragraph boundaries
+  const raw = clone.textContent ?? ''
+  const text = raw
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  if (text.length < 100) {
+    return err(new Error('No readable content found on this page'))
+  }
+
+  return ok({
+    title: doc.title ?? '',
+    byline: null,
+    siteName: doc.querySelector('meta[property="og:site_name"]')?.getAttribute('content') ?? null,
+    lang: doc.documentElement.lang || 'en',
+    content: `<div>${text}</div>`,
+    textContent: text,
+    excerpt: text.substring(0, 200),
+    length: text.length,
+  })
+}

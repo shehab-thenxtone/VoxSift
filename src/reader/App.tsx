@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function ReaderApp({ content }: Props) {
-  const { status, progress, activeSegmentId } = usePlaybackState()
+  const { status, progress, activeSegmentId, ghostMode } = usePlaybackState()
   const containerRef = useAutoScroll(activeSegmentId)
   useKeyboardShortcuts()
   const [collapsed, setCollapsed] = useState(false)
@@ -24,16 +24,27 @@ export function ReaderApp({ content }: Props) {
     initPlaybackChannel()
   }, [])
 
+  // Ghost mode controls panel visibility in both directions.
+  // Turning ghost mode off (e.g. from the popup) reopens the panel.
+  useEffect(() => {
+    setCollapsed(ghostMode)
+  }, [ghostMode])
+
   const isPlaying = status === 'playing'
+
+  const handleExpand = () => {
+    setCollapsed(false)
+    if (ghostMode) {
+      sendToBackground({ type: MESSAGE_TYPE.ToggleGhostMode, enabled: false } as Parameters<
+        typeof sendToBackground
+      >[0])
+    }
+  }
 
   if (collapsed) {
     return (
       <div className="vs-tab">
-        <button
-          className="vs-tab-btn"
-          onClick={() => setCollapsed(false)}
-          aria-label="Open VoxSift reader"
-        >
+        <button className="vs-tab-btn" onClick={handleExpand} aria-label="Open VoxSift reader">
           VoxSift
         </button>
       </div>

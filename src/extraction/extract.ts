@@ -1,7 +1,7 @@
 import type { ExtractedContent, SpeechSegment } from '../shared/types/content'
 import type { Result } from '../shared/utils/result'
 import { ok, err } from '../shared/utils/result'
-import { runReadability } from './readability'
+import { runReadability, extractBodyText } from './readability'
 import { sanitizeHtml } from './sanitize'
 import { segmentText } from './segmenter'
 import { genContentId } from '../shared/utils/id'
@@ -35,7 +35,8 @@ export async function extractPageAsync(
 ): Promise<Result<ExtractedContent>> {
   onProgress(0.05, 'Analyzing page')
 
-  const readResult = runReadability(doc)
+  const _read = runReadability(doc)
+  const readResult = _read.ok ? _read : extractBodyText(doc)
   if (!readResult.ok) return err(readResult.error)
 
   onProgress(0.6, 'Extracting content')
@@ -114,7 +115,8 @@ export async function extractPageAsync(
 }
 
 export function extractPage(doc: Document, tabId: number, url: string): Result<ExtractedContent> {
-  const readResult = runReadability(doc)
+  const _read = runReadability(doc)
+  const readResult = _read.ok ? _read : extractBodyText(doc)
   if (!readResult.ok) return err(readResult.error)
 
   const article = readResult.value
