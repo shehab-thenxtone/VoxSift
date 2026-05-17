@@ -1,0 +1,48 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+
+    <linearGradient id="waveGradient" x1="170" y1="180" x2="342" y2="332" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E0F2FE"/>
+    </linearGradient>
+
+    <filter id="shadow" x="0" y="0" width="512" height="512" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect x="48" y="48" width="416" height="416" rx="112" fill="url(#bgGradient)" filter="url(#shadow)"/>
+
+  <!-- Stylized V -->
+  <path
+    d="M156 166L222 346C227 360 246 360 251 346L316 166"
+    stroke="white"
+    stroke-width="34"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- Audio Waves -->
+  <path
+    d="M332 204C360 224 376 255 376 288C376 321 360 352 332 372"
+    stroke="url(#waveGradient)"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M302 232C320 246 330 266 330 288C330 310 320 330 302 344"
+    stroke="url(#waveGradient)"
+    stroke-width="18"
+    stroke-linecap="round"
+    opacity="0.92"
+  />
+
+  <!-- Subtle Sound Pulse -->
+  <circle cx="286" cy="288" r="10" fill="white" opacity="0.95"/>
+</svg>

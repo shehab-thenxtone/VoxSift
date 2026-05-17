@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoxSift Privacy Policy</title>
+  <style>
+    :root {
+      --color-bg: #f9fafb;
+      --color-surface: #ffffff;
+      --color-text: #111827;
+      --color-muted: #6b7280;
+      --color-accent: #4f46e5;
+      --color-border: #e5e7eb;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.7;
+      padding: 2rem 1rem;
+    }
+    .wrapper {
+      max-width: 720px;
+      margin: 0 auto;
+      background: var(--color-surface);
+      border-radius: 12px;
+      border: 1px solid var(--color-border);
+      padding: 3rem 3.5rem;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 2.5rem;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #4f46e5, #06b6d4);
+      border-radius: 8px;
+    }
+    .logo-name { font-size: 1.25rem; font-weight: 700; color: var(--color-accent); }
+    h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .meta { color: var(--color-muted); font-size: 0.875rem; margin-bottom: 2.5rem; }
+    h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-top: 2rem;
+      margin-bottom: 0.75rem;
+      color: var(--color-text);
+    }
+    p { margin-bottom: 1rem; color: #374151; }
+    ul { margin: 0.5rem 0 1rem 1.5rem; color: #374151; }
+    ul li { margin-bottom: 0.4rem; }
+    .highlight {
+      background: #eff6ff;
+      border-left: 3px solid var(--color-accent);
+      padding: 1rem 1.25rem;
+      border-radius: 0 8px 8px 0;
+      margin: 1.5rem 0;
+      font-weight: 500;
+    }
+    a { color: var(--color-accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--color-border); color: var(--color-muted); font-size: 0.8rem; }
+    @media (max-width: 640px) {
+      .wrapper { padding: 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="logo">
+      <div class="logo-mark"></div>
+      <span class="logo-name">VoxSift</span>
+    </div>
+
+    <h1>Privacy Policy</h1>
+    <p class="meta">Effective date: May 17, 2025 &nbsp;&middot;&nbsp; Last updated: May 17, 2025</p>
+
+    <div class="highlight">
+      VoxSift is a fully local, privacy-first extension. It does not collect, store, or transmit any personal data to any server. All processing happens entirely on your device.
+    </div>
+
+    <h2>1. What VoxSift Does</h2>
+    <p>VoxSift is a Chrome extension that extracts the meaningful text content from webpages and reads it aloud using your device's built-in text-to-speech system. It lets you listen to articles and web content hands-free, without leaving your browser.</p>
+
+    <h2>2. Data We Collect</h2>
+    <p><strong>We collect no personal data.</strong> VoxSift never identifies you, never tracks your browsing, and never sends any information outside your browser.</p>
+    <p>The only data the extension stores is:</p>
+    <ul>
+      <li><strong>Preferences</strong> (voice selection, playback speed) &mdash; saved locally in <code>chrome.storage.local</code> on your device only.</li>
+      <li><strong>Session state</strong> (current reading position, queue) &mdash; held temporarily in <code>chrome.storage.local</code> so playback can resume after a tab switch; cleared when you stop playback or close the browser.</li>
+    </ul>
+
+    <h2>3. Webpage Content Access</h2>
+    <p>VoxSift reads the text content of pages you visit in order to extract and read it aloud. This content:</p>
+    <ul>
+      <li>Is processed entirely within your browser using <a href="https://github.com/mozilla/readability" rel="noopener noreferrer">Mozilla Readability</a>.</li>
+      <li>Is never sent to any server, third party, or external service.</li>
+      <li>Is discarded after playback ends.</li>
+    </ul>
+
+    <h2>4. Permissions Used</h2>
+    <p>VoxSift requests the following Chrome permissions, each for a specific reason:</p>
+    <ul>
+      <li><strong>activeTab / host_permissions</strong> &mdash; required to read the text of the page you want to listen to.</li>
+      <li><strong>scripting</strong> &mdash; required to inject the content extraction and reader UI into the page.</li>
+      <li><strong>storage</strong> &mdash; required to save your voice and speed preferences locally.</li>
+      <li><strong>tts</strong> &mdash; required to use Chrome's built-in text-to-speech engine.</li>
+      <li><strong>offscreen</strong> &mdash; required to run the Web Speech API from the background service worker.</li>
+      <li><strong>alarms</strong> &mdash; required to keep the background service worker alive during long playback sessions.</li>
+      <li><strong>tabs</strong> &mdash; required to maintain playback continuity when you switch between tabs.</li>
+    </ul>
+
+    <h2>5. Third-Party Services</h2>
+    <p>VoxSift uses no third-party services, analytics, crash reporting, advertising, or tracking of any kind. The extension functions entirely offline after installation.</p>
+
+    <h2>6. Children's Privacy</h2>
+    <p>VoxSift does not knowingly collect any information from children under 13 (or the applicable age of digital consent in your region). Because we collect no personal data from anyone, this requirement is inherently satisfied.</p>
+
+    <h2>7. Changes to This Policy</h2>
+    <p>If we ever change our data practices in a meaningful way, we will update this page and bump the effective date above. For a privacy-impacting change, we will also update the extension's description in the Chrome Web Store.</p>
+
+    <h2>8. Contact</h2>
+    <p>Questions about this policy? Contact us at <a href="mailto:Shehab.magdy@thenxt.one">Shehab.magdy@thenxt.one</a>.</p>
+
+    <footer>
+      &copy; 2025 VoxSift. All rights reserved.
+    </footer>
+  </div>
+</body>
+</html>

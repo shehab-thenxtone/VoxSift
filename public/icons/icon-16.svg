@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6B7BF5"/>
+      <stop offset="100%" stop-color="#4347D9"/>
+    </linearGradient>
+  </defs>
+  <rect width="16" height="16" rx="3" fill="url(#bg)"/>
+  <!-- Simplified page + wave at 16px -->
+  <rect x="3" y="2.5" width="6" height="8" rx="1" fill="none" stroke="white" stroke-width="1.2" opacity="0.9"/>
+  <path d="M 11 5.5 Q 13 8 11 10.5" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.95"/>
+  <circle cx="10" cy="8" r="1" fill="white" opacity="0.95"/>
+</svg>
