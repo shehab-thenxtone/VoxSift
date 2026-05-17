@@ -19,6 +19,8 @@ export interface TtsEngine {
     onEnd: () => void,
     onError: (error: string) => void,
   ): void
+  /** Append segments to the live playlist; starts speaking if idle */
+  appendSegments(segments: SpeechSegment[]): void
   pause(): void
   resume(): void
   cancel(): void

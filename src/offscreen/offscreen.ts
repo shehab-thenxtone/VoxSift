@@ -15,44 +15,53 @@ interface SpeakPayload {
   startIndex: number
 }
 
-chrome.runtime.onMessage.addListener((msg: { target?: string; type: string; payload?: unknown }) => {
-  if (msg.target !== 'offscreen') return
+chrome.runtime.onMessage.addListener(
+  (msg: { target?: string; type: string; payload?: unknown }) => {
+    if (msg.target !== 'offscreen') return
 
-  switch (msg.type) {
-    case 'speak': {
-      const { segments, config, startIndex } = msg.payload as SpeakPayload
-      engine.speak(
-        segments,
-        config,
-        startIndex,
-        (boundary) => {
-          chrome.runtime.sendMessage({ type: 'offscreen/boundary', boundary })
-        },
-        () => {
-          chrome.runtime.sendMessage({ type: 'offscreen/end' })
-        },
-        (error) => {
-          logger.error('Offscreen TTS error', error)
-          chrome.runtime.sendMessage({ type: 'offscreen/error', error })
-        },
-      )
-      break
+    switch (msg.type) {
+      case 'speak': {
+        const { segments, config, startIndex } = msg.payload as SpeakPayload
+        engine.speak(
+          segments,
+          config,
+          startIndex,
+          (boundary) => {
+            chrome.runtime.sendMessage({ type: 'offscreen/boundary', boundary })
+          },
+          () => {
+            chrome.runtime.sendMessage({ type: 'offscreen/end' })
+          },
+          (error) => {
+            logger.error('Offscreen TTS error', error)
+            chrome.runtime.sendMessage({ type: 'offscreen/error', error })
+          },
+        )
+        break
+      }
+      case 'pause':
+        engine.pause()
+        break
+      case 'resume':
+        engine.resume()
+        break
+      case 'appendSegments': {
+        const { segments } = msg.payload as {
+          segments: import('../shared/types/content').SpeechSegment[]
+        }
+        engine.appendSegments(segments)
+        break
+      }
+      case 'cancel':
+        engine.cancel()
+        break
+      case 'getVoices':
+        engine.getVoices().then((voices) => {
+          chrome.runtime.sendMessage({ type: 'offscreen/voices', voices })
+        })
+        break
     }
-    case 'pause':
-      engine.pause()
-      break
-    case 'resume':
-      engine.resume()
-      break
-    case 'cancel':
-      engine.cancel()
-      break
-    case 'getVoices':
-      engine.getVoices().then((voices) => {
-        chrome.runtime.sendMessage({ type: 'offscreen/voices', voices })
-      })
-      break
-  }
-})
+  },
+)
 
 logger.info('Offscreen document ready')

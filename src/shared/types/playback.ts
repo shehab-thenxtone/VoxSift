@@ -10,12 +10,7 @@ export type PlaybackStatus =
   | 'error'
 
 export interface PlaybackError {
-  code:
-    | 'EXTRACTION_FAILED'
-    | 'NO_VOICES'
-    | 'TTS_ENGINE_ERROR'
-    | 'TAB_GONE'
-    | 'UNSUPPORTED_PAGE'
+  code: 'EXTRACTION_FAILED' | 'NO_VOICES' | 'TTS_ENGINE_ERROR' | 'TAB_GONE' | 'UNSUPPORTED_PAGE'
   message: string
   cause?: string
 }
@@ -30,6 +25,8 @@ export interface PlaybackState {
   charOffsetInSegment: number
   /** 0–1 fraction of totalChars */
   progress: number
+  /** 0–1 fraction of extraction completed; 0 when not extracting */
+  extractionProgress: number
   voice: VoiceConfig
   ghostMode: boolean
   /** Monotonically increasing — surfaces drop stale broadcasts */

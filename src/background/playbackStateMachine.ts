@@ -7,6 +7,7 @@ type TransitionEvent =
   | { type: 'EXTRACT_AND_PLAY'; tabId: number; contentId: string }
   | { type: 'EXTRACT_COMPLETED' }
   | { type: 'EXTRACT_FAILED'; error: PlaybackError }
+  | { type: 'EXTRACTION_PROGRESS'; progress: number }
   | { type: 'PLAY' }
   | { type: 'PAUSE' }
   | { type: 'STOP' }
@@ -32,6 +33,7 @@ export class PlaybackStateMachine {
       activeSegmentId: null,
       charOffsetInSegment: 0,
       progress: 0,
+      extractionProgress: 0,
       voice: DEFAULT_VOICE,
       ghostMode: false,
       revision: 0,
@@ -54,11 +56,7 @@ export class PlaybackStateMachine {
     return this.state
   }
 
-  private reduce(
-    s: PlaybackState,
-    event: TransitionEvent,
-    totalSegments = 0,
-  ): PlaybackState {
+  private reduce(s: PlaybackState, event: TransitionEvent, totalSegments = 0): PlaybackState {
     switch (event.type) {
       case 'EXTRACT_AND_PLAY':
         return {
@@ -70,19 +68,30 @@ export class PlaybackStateMachine {
           activeSegmentId: null,
           charOffsetInSegment: 0,
           progress: 0,
+          extractionProgress: 0,
           error: null,
         }
 
-      case 'EXTRACT_COMPLETED':
+      case 'EXTRACTION_PROGRESS':
         if (s.status !== 'extracting') return s
-        return { ...s, status: 'ready' }
+        return { ...s, extractionProgress: event.progress }
+
+      case 'EXTRACT_COMPLETED':
+        if (s.status !== 'extracting' && s.status !== 'playing') return s
+        return {
+          ...s,
+          status: s.status === 'playing' ? 'playing' : 'ready',
+          extractionProgress: 0,
+        }
 
       case 'EXTRACT_FAILED':
         if (s.status !== 'extracting') return s
-        return { ...s, status: 'error', error: event.error }
+        return { ...s, status: 'error', error: event.error, extractionProgress: 0 }
 
       case 'PLAY': {
-        if (s.status === 'ready' || s.status === 'stopped') return { ...s, status: 'playing' }
+        if (s.status === 'ready' || s.status === 'stopped' || s.status === 'extracting') {
+          return { ...s, status: 'playing' }
+        }
         if (s.status === 'paused') return { ...s, status: 'playing' }
         return s
       }
@@ -93,7 +102,7 @@ export class PlaybackStateMachine {
 
       case 'STOP':
         if (!['playing', 'paused', 'ready', 'extracting'].includes(s.status)) return s
-        return { ...s, status: 'stopped' }
+        return { ...s, status: 'stopped', extractionProgress: 0 }
 
       case 'SKIP_NEXT': {
         const next = Math.min(s.activeSegmentIndex + 1, totalSegments - 1)
@@ -122,7 +131,13 @@ export class PlaybackStateMachine {
         }
 
       case 'QUEUE_END':
-        return { ...s, status: 'stopped', progress: 1, activeSegmentIndex: 0, charOffsetInSegment: 0 }
+        return {
+          ...s,
+          status: 'stopped',
+          progress: 1,
+          activeSegmentIndex: 0,
+          charOffsetInSegment: 0,
+        }
 
       case 'SET_VOICE':
         return { ...s, voice: event.voice }
@@ -134,7 +149,15 @@ export class PlaybackStateMachine {
         return { ...s, ghostMode: event.enabled }
 
       case 'RESET':
-        return { ...s, status: 'idle', error: null, contentId: null, tabId: null, progress: 0 }
+        return {
+          ...s,
+          status: 'idle',
+          error: null,
+          contentId: null,
+          tabId: null,
+          progress: 0,
+          extractionProgress: 0,
+        }
 
       default:
         return assertNever(event)

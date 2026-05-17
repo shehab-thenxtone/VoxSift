@@ -39,6 +39,8 @@ export const MESSAGE_TYPE = {
   ExtractionStarted: 'evt/extractionStarted',
   ExtractionCompleted: 'evt/extractionCompleted',
   ExtractionFailed: 'evt/extractionFailed',
+  ExtractionProgress: 'evt/extractionProgress',
+  ExtractionChunk: 'evt/extractionChunk',
 } as const
 
 export type MessageType = (typeof MESSAGE_TYPE)[keyof typeof MESSAGE_TYPE]
@@ -64,7 +66,7 @@ export type Message =
   | (Base<typeof MESSAGE_TYPE.ToggleGhostMode> & { enabled: boolean })
   | (Base<typeof MESSAGE_TYPE.OpenReader> & { tabId: number })
   | (Base<typeof MESSAGE_TYPE.CloseReader> & { tabId: number })
-  | (Base<typeof MESSAGE_TYPE.RunExtraction> & { contentId: string })
+  | (Base<typeof MESSAGE_TYPE.RunExtraction> & { contentId: string; tabId: number })
   | (Base<typeof MESSAGE_TYPE.ExtractSelection> & { contentId: string })
   | (Base<typeof MESSAGE_TYPE.MountReader> & { content: ExtractedContent })
   | Base<typeof MESSAGE_TYPE.UnmountReader>
@@ -86,6 +88,28 @@ export type Message =
   | (Base<typeof MESSAGE_TYPE.ExtractionStarted> & { tabId: number })
   | (Base<typeof MESSAGE_TYPE.ExtractionCompleted> & { content: ExtractedContent })
   | (Base<typeof MESSAGE_TYPE.ExtractionFailed> & { tabId: number; reason: string })
+  | (Base<typeof MESSAGE_TYPE.ExtractionProgress> & {
+      tabId: number
+      progress: number
+      phase: string
+    })
+  | (Base<typeof MESSAGE_TYPE.ExtractionChunk> & {
+      contentId: string
+      segments: import('./content').SpeechSegment[]
+      meta: {
+        tabId: number
+        url: string
+        title: string
+        byline: string | null
+        siteName: string | null
+        lang: string
+        sanitizedHtml: string
+        wordCount: number
+        extractedAt: number
+      } | null
+      isFirst: boolean
+      isFinal: boolean
+    })
 
 export type MessageResponse<T = unknown> =
   | { ok: true; reqId: string; data: T }

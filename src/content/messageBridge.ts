@@ -1,12 +1,11 @@
 import type { Message, MessageResponse } from '../shared/types/messages'
 import { MESSAGE_TYPE } from '../shared/types/messages'
 import { runPageExtraction } from './extractionBridge'
-import { sendToBackground } from '../shared/messaging/send'
-
 import { logger } from '../shared/utils/logger'
 
 // Will be set by the mount functions
-let mountReader: ((content: import('../shared/types/content').ExtractedContent) => void) | null = null
+let mountReader: ((content: import('../shared/types/content').ExtractedContent) => void) | null =
+  null
 let unmountReader: (() => void) | null = null
 let mountMiniPlayer: ((contentId: string) => void) | null = null
 let unmountMiniPlayer: (() => void) | null = null
@@ -27,17 +26,19 @@ export function registerMountHandlers(handlers: {
 }
 
 export function setupMessageListener(): void {
-  chrome.runtime.onMessage.addListener(
-    (msg: Message, _sender, sendResponse): boolean => {
-      handleContentMessage(msg)
-        .then(sendResponse)
-        .catch((e) => {
-          logger.error('Content message error', e)
-          sendResponse({ ok: false, reqId: msg.reqId, error: { code: 'INTERNAL', message: String(e) } })
+  chrome.runtime.onMessage.addListener((msg: Message, _sender, sendResponse): boolean => {
+    handleContentMessage(msg)
+      .then(sendResponse)
+      .catch((e) => {
+        logger.error('Content message error', e)
+        sendResponse({
+          ok: false,
+          reqId: msg.reqId,
+          error: { code: 'INTERNAL', message: String(e) },
         })
-      return true
-    },
-  )
+      })
+    return true
+  })
 }
 
 async function handleContentMessage(msg: Message): Promise<MessageResponse> {
@@ -45,16 +46,11 @@ async function handleContentMessage(msg: Message): Promise<MessageResponse> {
 
   switch (type) {
     case MESSAGE_TYPE.RunExtraction: {
-      const tabId = chrome.runtime.id ? 0 : 0 // tabId resolved on background side
-      const result = await runPageExtraction(tabId)
-      if (!result.ok) return { ok: false, reqId, error: { code: 'EXTRACTION_FAILED', message: result.error.message } }
-
-      // Notify background that extraction is done
-      await sendToBackground({
-        type: MESSAGE_TYPE.ExtractionCompleted,
-        content: result.value,
-      } as Omit<Message, 'reqId' | 'ts'>)
-
+      const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.RunExtraction }>
+      // Fire-and-forget: progress/chunks/completed arrive as separate messages
+      runPageExtraction(m.tabId, m.contentId).catch((e) => {
+        logger.error('runPageExtraction failed', e)
+      })
       return { ok: true, reqId, data: undefined }
     }
 
@@ -86,7 +82,11 @@ async function handleContentMessage(msg: Message): Promise<MessageResponse> {
 
     case MESSAGE_TYPE.PlaybackUpdated:
       // Forwarded to React trees via custom event
-      window.dispatchEvent(new CustomEvent('voxsift:playback', { detail: (msg as Extract<Message, { type: typeof MESSAGE_TYPE.PlaybackUpdated }>).state }))
+      window.dispatchEvent(
+        new CustomEvent('voxsift:playback', {
+          detail: (msg as Extract<Message, { type: typeof MESSAGE_TYPE.PlaybackUpdated }>).state,
+        }),
+      )
       return { ok: true, reqId, data: undefined }
 
     default:

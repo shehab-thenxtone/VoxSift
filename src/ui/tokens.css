@@ -1,19 +1,25 @@
 :root {
-  /* Palette */
-  --color-surface: oklch(98% 0 0);
-  --color-surface-raised: oklch(95% 0 0);
-  --color-text: oklch(15% 0 0);
-  --color-text-muted: oklch(50% 0 0);
-  --color-accent: oklch(60% 0.21 250);
-  --color-accent-hover: oklch(55% 0.21 250);
-  --color-error: oklch(55% 0.22 25);
-  --color-success: oklch(55% 0.18 145);
+  /* OKLCH channel variables (L C H only — no oklch() wrapper) for Tailwind alpha support */
+  --c-surface: 97% 0.005 280;
+  --c-surface-raised: 92% 0.007 280;
+  --c-text: 12% 0.005 280;
+  --c-text-muted: 48% 0.005 280;
+  --c-accent: 56% 0.23 270;
+  --c-accent-hover: 50% 0.23 270;
+  --c-error: 54% 0.22 22;
+  --c-success: 54% 0.18 148;
+  --c-border: 86% 0.006 280;
 
-  /* Dark mode */
-  --color-surface-dark: oklch(14% 0 0);
-  --color-surface-raised-dark: oklch(20% 0 0);
-  --color-text-dark: oklch(92% 0 0);
-  --color-text-muted-dark: oklch(60% 0 0);
+  /* Full-value tokens for non-alpha usages */
+  --color-surface: oklch(97% 0.005 280);
+  --color-surface-raised: oklch(92% 0.007 280);
+  --color-text: oklch(12% 0.005 280);
+  --color-text-muted: oklch(48% 0.005 280);
+  --color-accent: oklch(56% 0.23 270);
+  --color-accent-hover: oklch(50% 0.23 270);
+  --color-error: oklch(54% 0.22 22);
+  --color-success: oklch(54% 0.18 148);
+  --color-border: oklch(86% 0.006 280);
 
   /* Typography */
   --text-xs: clamp(0.7rem, 0.65rem + 0.25vw, 0.8rem);
@@ -52,4 +58,58 @@
   /* Z-index layers */
   --z-miniplayer: 2147483646;
   --z-reader: 2147483647;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --c-surface: 11% 0.008 280;
+    --c-surface-raised: 17% 0.009 280;
+    --c-text: 93% 0.005 280;
+    --c-text-muted: 60% 0.005 280;
+    --c-accent: 64% 0.23 270;
+    --c-accent-hover: 70% 0.23 270;
+    --c-error: 62% 0.22 22;
+    --c-success: 62% 0.18 148;
+    --c-border: 24% 0.009 280;
+
+    --color-surface: oklch(11% 0.008 280);
+    --color-surface-raised: oklch(17% 0.009 280);
+    --color-text: oklch(93% 0.005 280);
+    --color-text-muted: oklch(60% 0.005 280);
+    --color-accent: oklch(64% 0.23 270);
+    --color-accent-hover: oklch(70% 0.23 270);
+    --color-error: oklch(62% 0.22 22);
+    --color-success: oklch(62% 0.18 148);
+    --color-border: oklch(24% 0.009 280);
+
+    --shadow-sm: 0 1px 3px oklch(0% 0 0 / 0.3);
+    --shadow-md: 0 4px 16px oklch(0% 0 0 / 0.4);
+    --shadow-lg: 0 8px 32px oklch(0% 0 0 / 0.5);
+  }
+}
+
+html.dark {
+  --c-surface: 11% 0.008 280;
+  --c-surface-raised: 17% 0.009 280;
+  --c-text: 93% 0.005 280;
+  --c-text-muted: 60% 0.005 280;
+  --c-accent: 64% 0.23 270;
+  --c-accent-hover: 70% 0.23 270;
+  --c-error: 62% 0.22 22;
+  --c-success: 62% 0.18 148;
+  --c-border: 24% 0.009 280;
+
+  --color-surface: oklch(11% 0.008 280);
+  --color-surface-raised: oklch(17% 0.009 280);
+  --color-text: oklch(93% 0.005 280);
+  --color-text-muted: oklch(60% 0.005 280);
+  --color-accent: oklch(64% 0.23 270);
+  --color-accent-hover: oklch(70% 0.23 270);
+  --color-error: oklch(62% 0.22 22);
+  --color-success: oklch(62% 0.18 148);
+  --color-border: oklch(24% 0.009 280);
+
+  --shadow-sm: 0 1px 3px oklch(0% 0 0 / 0.3);
+  --shadow-md: 0 4px 16px oklch(0% 0 0 / 0.4);
+  --shadow-lg: 0 8px 32px oklch(0% 0 0 / 0.5);
 }

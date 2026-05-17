@@ -4,7 +4,7 @@ import { tabRegistry } from './tabRegistry'
 import { broadcastPlaybackUpdated } from './broadcast'
 import { sessionStore } from '../storage/sessionStore'
 import { getTtsEngine } from '../tts/engineFactory'
-import type { ExtractedContent } from '../shared/types/content'
+import type { ExtractedContent, SpeechSegment } from '../shared/types/content'
 import type { VoiceConfig } from '../shared/types/voice'
 import { MESSAGE_TYPE } from '../shared/types/messages'
 import { genReqId } from '../shared/utils/id'
@@ -17,9 +17,8 @@ function persist() {
   const state = fsm.getState()
   sessionStore.save({
     state: { ...state },
-    contentRef: state.contentId && state.tabId
-      ? { id: state.contentId, tabId: state.tabId, url: '' }
-      : null,
+    contentRef:
+      state.contentId && state.tabId ? { id: state.contentId, tabId: state.tabId, url: '' } : null,
   })
 }
 
@@ -33,16 +32,39 @@ export const playbackController = {
     return fsm.getState()
   },
 
+  async startExtraction(tabId: number, contentId: string): Promise<void> {
+    fsm.dispatch({ type: 'EXTRACT_AND_PLAY', tabId, contentId }, queue.length)
+    await broadcast()
+  },
+
+  async onExtractionProgress(progress: number): Promise<void> {
+    fsm.dispatch({ type: 'EXTRACTION_PROGRESS', progress }, queue.length)
+    await broadcast()
+  },
+
+  /** Called when the first streaming chunk arrives — starts TTS immediately */
+  async onFirstChunk(tabId: number, segments: SpeechSegment[]): Promise<void> {
+    queue.load(segments)
+    tabRegistry.setActive(tabId)
+    await this.play()
+  },
+
+  /** Called for subsequent streaming chunks — appends to live TTS queue */
+  async onChunk(segments: SpeechSegment[]): Promise<void> {
+    queue.append(segments)
+    getTtsEngine().appendSegments(segments)
+  },
+
+  /** Called when full content arrives (ExtractionCompleted) */
   async loadContent(content: ExtractedContent): Promise<void> {
+    const wasPlaying = fsm.getState().status === 'playing'
     queue.load(content.segments)
     tabRegistry.setActive(content.tabId)
     fsm.dispatch({ type: 'EXTRACT_COMPLETED' }, queue.length)
     await broadcast()
-  },
-
-  async startExtraction(tabId: number, contentId: string): Promise<void> {
-    fsm.dispatch({ type: 'EXTRACT_AND_PLAY', tabId, contentId }, queue.length)
-    await broadcast()
+    if (!wasPlaying) {
+      await this.play()
+    }
   },
 
   async onExtractionFailed(reason: string): Promise<void> {
@@ -67,14 +89,16 @@ export const playbackController = {
       (boundary) => {
         const seg = segments[boundary.segmentIndex]
         if (!seg) return
-        fsm.dispatch({
-          type: 'BOUNDARY',
-          segmentIndex: boundary.segmentIndex,
-          segmentId: seg.id,
-          charOffsetInSegment: boundary.charIndex,
-        }, queue.length)
+        fsm.dispatch(
+          {
+            type: 'BOUNDARY',
+            segmentIndex: boundary.segmentIndex,
+            segmentId: seg.id,
+            charOffsetInSegment: boundary.charIndex,
+          },
+          queue.length,
+        )
 
-        // Broadcast boundary for reader highlighting
         const boundaryMsg = {
           type: MESSAGE_TYPE.SegmentBoundary,
           reqId: genReqId(),
@@ -93,7 +117,10 @@ export const playbackController = {
       },
       (error) => {
         logger.error('TTS error', error)
-        fsm.dispatch({ type: 'EXTRACT_FAILED', error: { code: 'TTS_ENGINE_ERROR', message: error } })
+        fsm.dispatch({
+          type: 'EXTRACT_FAILED',
+          error: { code: 'TTS_ENGINE_ERROR', message: error },
+        })
         broadcast()
       },
     )

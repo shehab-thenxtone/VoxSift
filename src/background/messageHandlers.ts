@@ -5,7 +5,6 @@ import { storageManager } from '../storage/storageManager'
 import { getTtsEngine } from '../tts/engineFactory'
 import { sendToTab } from '../shared/messaging/send'
 import { genReqId } from '../shared/utils/id'
-import { extractPage } from '../extraction/extract'
 import { logger } from '../shared/utils/logger'
 
 function success<T>(reqId: string, data: T): MessageResponse<T> {
@@ -33,29 +32,65 @@ export async function handleMessage(
       }
 
       case MESSAGE_TYPE.ExtractAndPlay: {
-        const tabId = (msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractAndPlay }>).tabId
+        const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractAndPlay }>
         const contentId = genReqId()
-        await playbackController.startExtraction(tabId, contentId)
+        await playbackController.startExtraction(m.tabId, contentId)
 
-        // Ask content script to run extraction
-        const extractMsg = {
+        // Fire-and-forget: progress/chunks/completed arrive as separate messages
+        sendToTab(m.tabId, {
           type: MESSAGE_TYPE.RunExtraction,
-          reqId: genReqId(),
-          ts: Date.now(),
           contentId,
-        }
-        const result = await sendToTab(tabId, extractMsg)
-        if (!result.ok) {
-          await playbackController.onExtractionFailed(result.error.message)
-          return failure(reqId, result.error.code, result.error.message)
-        }
-
-        const content = (result as { ok: true; reqId: string; data: ReturnType<typeof extractPage> }).data
-        if (!content || typeof content !== 'object' || !('ok' in content)) {
-          return failure(reqId, 'EXTRACT_EMPTY', 'No content returned')
-        }
+          tabId: m.tabId,
+        } as Parameters<typeof sendToTab>[1]).catch(() => {
+          playbackController.onExtractionFailed('Tab unavailable').catch(() => {})
+        })
 
         return success(reqId, { contentId })
+      }
+
+      case MESSAGE_TYPE.ExtractionProgress: {
+        const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionProgress }>
+        await playbackController.onExtractionProgress(m.progress)
+        return success(reqId, undefined)
+      }
+
+      case MESSAGE_TYPE.ExtractionChunk: {
+        const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionChunk }>
+        if (m.isFirst && m.meta) {
+          await playbackController.onFirstChunk(m.meta.tabId, m.segments)
+          // Mount mini-player immediately so user has controls during extraction
+          sendToTab(m.meta.tabId, {
+            type: MESSAGE_TYPE.MountMiniPlayer,
+            contentId: m.contentId,
+          } as Parameters<typeof sendToTab>[1]).catch(() => {})
+        } else {
+          await playbackController.onChunk(m.segments)
+        }
+        return success(reqId, undefined)
+      }
+
+      case MESSAGE_TYPE.ExtractionCompleted: {
+        const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionCompleted }>
+        await storageManager.cacheContent(m.content)
+        const wasPlaying = playbackController.getState().status === 'playing'
+        await playbackController.loadContent(m.content)
+
+        const tabId = m.content.tabId
+        // Always mount reader with complete content
+        sendToTab(tabId, {
+          type: MESSAGE_TYPE.MountReader,
+          content: m.content,
+        } as Parameters<typeof sendToTab>[1]).catch(() => {})
+
+        // Mini-player only needed if streaming didn't mount it already
+        if (!wasPlaying) {
+          sendToTab(tabId, {
+            type: MESSAGE_TYPE.MountMiniPlayer,
+            contentId: m.content.id,
+          } as Parameters<typeof sendToTab>[1]).catch(() => {})
+        }
+
+        return success(reqId, undefined)
       }
 
       case MESSAGE_TYPE.Play:
@@ -99,24 +134,6 @@ export async function handleMessage(
       case MESSAGE_TYPE.ToggleGhostMode: {
         const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ToggleGhostMode }>
         await playbackController.toggleGhostMode(m.enabled)
-        return success(reqId, undefined)
-      }
-
-      case MESSAGE_TYPE.ExtractionCompleted: {
-        const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionCompleted }>
-        await storageManager.cacheContent(m.content)
-        await playbackController.loadContent(m.content)
-
-        // Mount reader and mini player in the originating tab
-        const tabId = m.content.tabId
-        const mountReaderMsg = { type: MESSAGE_TYPE.MountReader, reqId: genReqId(), ts: Date.now(), content: m.content }
-        const mountMiniMsg = { type: MESSAGE_TYPE.MountMiniPlayer, reqId: genReqId(), ts: Date.now(), contentId: m.content.id }
-        await Promise.all([
-          sendToTab(tabId, mountReaderMsg),
-          sendToTab(tabId, mountMiniMsg),
-        ])
-
-        await playbackController.play()
         return success(reqId, undefined)
       }
 

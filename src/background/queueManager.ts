@@ -7,6 +7,10 @@ export class QueueManager {
     this.segments = segments
   }
 
+  append(segments: SpeechSegment[]): void {
+    this.segments.push(...segments)
+  }
+
   get(index: number): SpeechSegment | undefined {
     return this.segments[index]
   }

@@ -17,6 +17,7 @@ const defaultState: PlaybackState = {
   activeSegmentId: null,
   charOffsetInSegment: 0,
   progress: 0,
+  extractionProgress: 0,
   voice: { voiceId: '', rate: 1, pitch: 1, volume: 1, lang: 'en-US' },
   ghostMode: false,
   revision: -1,
