@@ -76,6 +76,12 @@ export async function handleMessage(
         return success(reqId, { contentId })
       }
 
+      case MESSAGE_TYPE.ExtractionFailed: {
+        const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionFailed }>
+        await playbackController.onExtractionFailed(m.reason)
+        return success(reqId, undefined)
+      }
+
       case MESSAGE_TYPE.ExtractionProgress: {
         const m = msg as Extract<Message, { type: typeof MESSAGE_TYPE.ExtractionProgress }>
         await playbackController.onExtractionProgress(m.progress)

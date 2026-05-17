@@ -1,5 +1,6 @@
 import { extractPageAsync } from '../extraction/extract'
 import { extractSelection } from '../extraction/selection'
+import { getLastSelectionText } from './selectionWatcher'
 import { sendToBackground } from '../shared/messaging/send'
 import type { ExtractedContent } from '../shared/types/content'
 import type { Result } from '../shared/utils/result'
@@ -47,19 +48,36 @@ export async function runPageExtraction(
             type: MESSAGE_TYPE.ExtractionCompleted,
             content: result.value,
           } as Parameters<typeof sendToBackground>[0]).catch(() => {})
+        } else {
+          sendToBackground({
+            type: MESSAGE_TYPE.ExtractionFailed,
+            tabId,
+            reason: result.error.message,
+          } as Parameters<typeof sendToBackground>[0]).catch(() => {})
         }
         resolve(result)
       })
       .catch((e) => {
         clearTimeout(timer)
         logger.error('Extraction error', e)
-        resolve(err(e instanceof Error ? e : new Error(String(e))))
+        const error = e instanceof Error ? e : new Error(String(e))
+        sendToBackground({
+          type: MESSAGE_TYPE.ExtractionFailed,
+          tabId,
+          reason: error.message,
+        } as Parameters<typeof sendToBackground>[0]).catch(() => {})
+        resolve(err(error))
       })
   })
 }
 
 export function runSelectionExtraction(tabId: number): ExtractedContent | null {
-  const selection = window.getSelection()
-  if (!selection) return null
-  return extractSelection(selection, tabId, location.href)
+  // Prefer the live selection; fall back to the last cached text because
+  // the popup steals page focus and makes window.getSelection() return "".
+  const live = window.getSelection()?.toString().trim() ?? ''
+  const text = live || getLastSelectionText()
+  if (!text) return null
+
+  const fakeSelection = { toString: () => text } as Selection
+  return extractSelection(fakeSelection, tabId, location.href)
 }

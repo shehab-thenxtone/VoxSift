@@ -11,10 +11,11 @@ interface Props {
 
 export function ArticleBody({ segments, activeSegmentId, containerRef }: Props) {
   const handleSeek = (index: number) => {
-    sendToBackground({ type: MESSAGE_TYPE.SeekToSegment, segmentIndex: index } as Parameters<typeof sendToBackground>[0])
+    sendToBackground({ type: MESSAGE_TYPE.SeekToSegment, segmentIndex: index } as Parameters<
+      typeof sendToBackground
+    >[0])
   }
 
-  // Group segments by paragraph
   const paragraphs = segments.reduce<SpeechSegment[][]>((acc, seg) => {
     const last = acc[acc.length - 1]
     if (last && last[0]?.paragraphId === seg.paragraphId) {
@@ -26,9 +27,9 @@ export function ArticleBody({ segments, activeSegmentId, containerRef }: Props) 
   }, [])
 
   return (
-    <div ref={containerRef} className="prose prose-lg max-w-none text-text leading-relaxed">
+    <div ref={containerRef} className="vs-article">
       {paragraphs.map((para, pIdx) => (
-        <p key={para[0]?.paragraphId ?? pIdx} className="mb-5">
+        <p key={para[0]?.paragraphId ?? pIdx} className="vs-paragraph">
           {para.map((seg) => (
             <Sentence
               key={seg.id}

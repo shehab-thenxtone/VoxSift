@@ -1,19 +1,307 @@
 :host {
-  --color-surface: oklch(98% 0 0);
-  --color-text: oklch(15% 0 0);
-  --color-accent: oklch(60% 0.21 250);
-  --color-muted: oklch(70% 0 0);
-  --text-base: 1.125rem;
-  --text-heading: 1.75rem;
-  --space-section: 2rem;
-  --duration-normal: 300ms;
-  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   all: initial;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color-scheme: light dark;
 }
 
-.voxsift-active {
-  background: oklch(92% 0.08 250 / 0.4);
+/* ── Panel (expanded) ──────────────────────────────── */
+.vs-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 380px;
+  height: 100dvh;
+  background: #f8f8fa;
+  color: #1a1a1a;
+  border-left: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: -6px 0 32px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 2147483647;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vs-panel {
+    background: #18181b;
+    color: #f0f0f0;
+    border-left-color: rgba(255, 255, 255, 0.08);
+    box-shadow: -6px 0 32px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* ── Collapsed tab ─────────────────────────────────── */
+.vs-tab {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2147483647;
+}
+
+.vs-tab-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: oklch(56% 0.23 270);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  padding: 14px 7px;
+  border-radius: 8px 0 0 8px;
+  box-shadow: -3px 0 16px rgba(0, 0, 0, 0.2);
+  writing-mode: vertical-rl;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-family: inherit;
+  transition: background 150ms, padding 150ms;
+}
+
+.vs-tab-btn:hover {
+  background: oklch(50% 0.23 270);
+  padding: 14px 10px;
+}
+
+/* ── Header ────────────────────────────────────────── */
+.vs-header {
+  flex: none;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vs-header { border-bottom-color: rgba(255, 255, 255, 0.08); }
+}
+
+.vs-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.vs-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  flex: 1;
+  min-width: 0;
+}
+
+.vs-byline {
+  font-size: 11px;
+  color: #888;
+  margin: 0;
+}
+
+/* ── Progress bar ──────────────────────────────────── */
+.vs-progress {
+  height: 3px;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vs-progress { background: rgba(255, 255, 255, 0.08); }
+}
+
+.vs-progress-fill {
+  height: 100%;
+  background: oklch(56% 0.23 270);
+  border-radius: 99px;
+  transition: width 300ms ease;
+}
+
+/* ── Transport controls ────────────────────────────── */
+.vs-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vs-transport {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.vs-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  transition: background 150ms;
+}
+
+.vs-icon-btn:hover { background: rgba(0, 0, 0, 0.06); }
+
+@media (prefers-color-scheme: dark) {
+  .vs-icon-btn:hover { background: rgba(255, 255, 255, 0.08); }
+}
+
+.vs-play-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: oklch(56% 0.23 270);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  transition: background 150ms, transform 100ms;
+}
+
+.vs-play-btn:hover { background: oklch(50% 0.23 270); }
+.vs-play-btn:active { transform: scale(0.94); }
+
+.vs-minimize-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 150ms, color 150ms;
+}
+
+.vs-minimize-btn:hover { background: rgba(0, 0, 0, 0.06); color: #555; }
+
+@media (prefers-color-scheme: dark) {
+  .vs-minimize-btn:hover { background: rgba(255, 255, 255, 0.08); color: #ccc; }
+}
+
+/* ── Speed slider ──────────────────────────────────── */
+.vs-speed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+.vs-speed-label {
+  font-size: 11px;
+  color: #888;
+  min-width: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.vs-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 99px;
+  outline: none;
+  cursor: pointer;
+  min-width: 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vs-slider { background: rgba(255, 255, 255, 0.1); }
+}
+
+.vs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: oklch(56% 0.23 270);
+  cursor: pointer;
+}
+
+.vs-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: oklch(56% 0.23 270);
+  border: none;
+  cursor: pointer;
+}
+
+/* ── Scrollable content ────────────────────────────── */
+.vs-content {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px 32px;
+}
+
+.vs-content::-webkit-scrollbar { width: 4px; }
+.vs-content::-webkit-scrollbar-track { background: transparent; }
+.vs-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 99px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .vs-content::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); }
+}
+
+/* ── Article text ──────────────────────────────────── */
+.vs-article { padding-top: 16px; }
+
+.vs-paragraph {
+  margin: 0 0 14px;
+  line-height: 1.75;
+  font-size: 14px;
+}
+
+/* ── Sentences ─────────────────────────────────────── */
+.vs-sentence {
+  cursor: pointer;
   border-radius: 3px;
-  transition: background var(--duration-normal) var(--ease-out-expo);
+  padding: 1px 2px;
+  transition: background 150ms;
+  display: inline;
+}
+
+.vs-sentence:hover { background: rgba(0, 0, 0, 0.06); }
+
+@media (prefers-color-scheme: dark) {
+  .vs-sentence:hover { background: rgba(255, 255, 255, 0.08); }
+}
+
+.vs-sentence-active {
+  background: oklch(56% 0.23 270 / 0.18);
+  font-weight: 500;
+}
+
+/* ── Highlight class (used by highlighter.ts) ──────── */
+.voxsift-active {
+  background: oklch(56% 0.23 270 / 0.25);
+  border-radius: 3px;
+  transition: background 200ms ease;
 }
