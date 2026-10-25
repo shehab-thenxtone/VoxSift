@@ -151,6 +151,14 @@ export function App() {
       {/* Footer controls */}
       <div className="flex items-center justify-between pt-1 border-t border-border/50">
         <GhostModeToggle enabled={ghostMode} />
+        <a
+          href={chrome.runtime.getURL('privacy-policy.html')}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-text-muted hover:text-text transition-colors duration-150"
+        >
+          Privacy
+        </a>
       </div>
     </main>
   )
